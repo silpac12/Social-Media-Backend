@@ -1,0 +1,74 @@
+name: Build
+on:
+  push:
+    branches:
+      - "main"
+  pull_request:
+    branches:
+      - "main"
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        service:
+          - "api-gateway"
+          - "identity-microservice"
+          - "notification-service"
+          - "posts"
+          - "profile"
+          - "service-registry"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+#      - name: Set up JDK 21
+#        uses: actions/setup-java@v4
+#        with:
+#          java-version: '21'
+#          distribution: 'temurin'
+#          cache: maven
+#      - name: Build ${{ matrix.service }}
+#        run:  |
+#          cd Microservices/${{ matrix.service }}
+#          mvn clean package -DskipTests=true
+      - name: Log in to the Container registry
+        uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@98669ae865ea3cffbcbaa878cf57c20bbf1c6c38
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}
+#      - run: |
+#          ls -lah .
+#          ls -lah ./Microservices
+#          ls -lah ./Microservices/${{ matrix.service }}
+      - name: Build and push Docker image
+        id: push
+        uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4
+        with:
+          context: ./Microservices
+          file: ./Microservices/${{ matrix.service }}/Dockerfile
+          build-args: |
+            SERVICE=${{ matrix.service }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+#      - run: |
+#          cd Microservices/${{ matrix.service }}
+#          docker build . -t cs4337.azurecr.io/${{ matrix.service }}:${{ github.sha }} -t cs4337.azurecr.io/${{ matrix.service }}:latest
+#          docker push cs4337.azurecr.io/${{ matrix.service }}:${{ github.sha }}
+#          docker push cs4337.azurecr.io/${{ matrix.service }}:latest

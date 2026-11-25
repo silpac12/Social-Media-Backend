@@ -1,0 +1,58 @@
+services:
+  eureka-service:
+    build:
+      context: ./Microservices
+      dockerfile: service-registry/Dockerfile
+      args:
+        SERVICE: service-registry
+
+  gateway:
+    build:
+      context: ./Microservices
+      dockerfile: api-gateway/Dockerfile
+      args:
+        SERVICE: api-gateway
+
+  profile-mysql:
+    volumes:
+      - ./dev/database/profile:/var/lib/mysql
+
+  posts-mysql:
+    volumes:
+      - ./dev/database/posts:/var/lib/mysql
+
+  auth-mysql:
+    volumes:
+      - ./dev/database/auth:/var/lib/mysql
+
+  notification-mysql:
+    volumes:
+      - ./dev/database/notification:/var/lib/mysql
+
+  profile_microservice:
+    build:
+      context: ./Microservices
+      dockerfile: profile/Dockerfile
+      args:
+        SERVICE: profile
+
+  auth_service:
+    build:
+      context: ./Microservices
+      dockerfile: identity-microservice/Dockerfile
+      args:
+        SERVICE: identity-microservice
+
+  notification_service:
+    build:
+      context: ./Microservices
+      dockerfile: notification-service/Dockerfile
+      args:
+        SERVICE: notification-service
+
+  posts_microservice:
+    build:
+      context: ./Microservices
+      dockerfile: posts/Dockerfile
+      args:
+        SERVICE: posts

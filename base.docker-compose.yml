@@ -1,0 +1,228 @@
+services:
+  eureka-service:
+    env_file: ".env"
+    environment:
+      SERVICE_REGISTRY_IP: eureka-service
+    networks:
+      - net
+    ports:
+      - "${PORT_SERVICE_REGISTRY}:8761"
+
+  gateway:
+    env_file: ".env"
+    environment:
+      SERVICE_REGISTRY_IP: eureka-service
+    networks:
+      - net
+    ports:
+      - "${GATEWAY_PORT}:8080"
+
+  profile-mysql:
+    # Always specify what version, "latest" causes issues later on
+    image: mysql:9.1
+    environment:
+      MYSQL_USER: ${PROFILE_MYSQL_USERNAME}
+      MYSQL_PASSWORD: ${PROFILE_MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${PROFILE_MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${PROFILE_DB_NAME}
+    networks:
+      - net
+    ports:
+      - "${PROFILE_DB_PORT_EXTERNAL}:3306"
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  posts-mysql:
+    # Always specify what version, "latest" causes issues later on
+    image: mysql:9.1
+    environment:
+      MYSQL_USER: ${POSTS_MYSQL_USERNAME}
+      MYSQL_PASSWORD: ${POSTS_MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${POSTS_MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${POSTS_DB_NAME}
+    networks:
+      - net
+    ports:
+      - "${POSTS_DB_PORT_EXTERNAL}:3306"
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  auth-mysql:
+    # Always specify what version, "latest" causes issues later on
+    image: mysql:9.1
+    environment:
+      MYSQL_USER: ${AUTH_MYSQL_USERNAME}
+      MYSQL_PASSWORD: ${AUTH_MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${AUTH_MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${AUTH_DB_NAME}
+    networks:
+      - net
+    ports:
+      - "${AUTH_DB_PORT_EXTERNAL}:3306"
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  notification-mysql:
+    image: mysql:9.1
+    environment:
+      MYSQL_USER: ${NOTIFICATION_MYSQL_USERNAME}
+      MYSQL_PASSWORD: ${NOTIFICATION_MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${NOTIFICATION_MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${NOTIFICATION_DB_NAME}
+    networks:
+      - net
+    ports:
+      - "${NOTIFICATION_DB_PORT_EXTERNAL}:3306"
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  profile_microservice:
+    depends_on:
+      profile-mysql:
+        condition: service_healthy
+      eureka-service:
+        condition: service_started
+      gateway:
+        condition: service_started
+    env_file: ".env"
+    environment:
+      PROFILE_DB_IP: profile-mysql
+      SERVICE_REGISTRY_IP: eureka-service
+    networks:
+      - net
+    ports:
+      - "${PROFILE_MICROSERVICE_PORT}:8083"
+
+
+  auth_service:
+    env_file: ".env"
+    environment:
+      AUTH_DB_IP: auth-mysql
+      SERVICE_REGISTRY_IP: eureka-service
+    depends_on:
+      auth-mysql:
+        condition: service_healthy
+      eureka-service:
+        condition: service_started
+      gateway:
+        condition: service_started
+    networks:
+      - net
+    ports:
+      - "${AUTH_MICROSERVICE_PORT}:8082"
+
+  notification_service:
+    env_file: ".env"
+    environment:
+      NOTIFICATION_DB_IP: notification-mysql
+      SERVICE_REGISTRY_IP: eureka-service
+    depends_on:
+      notification-mysql:
+        condition: service_healthy
+      eureka-service:
+        condition: service_started
+      gateway:
+        condition: service_started
+    networks:
+      - net
+    ports:
+      - "${NOTIFICATION_MICROSERVICE_PORT}:8085"
+
+
+  posts_microservice:
+    env_file: ".env"
+    environment:
+      POSTS_DB_IP: posts-mysql
+      SERVICE_REGISTRY_IP: eureka-service
+    depends_on:
+      posts-mysql:
+        condition: service_healthy
+      eureka-service:
+        condition: service_started
+      gateway:
+        condition: service_started
+
+    networks:
+      - net
+    ports:
+      - "${POSTS_MICROSERVICE_PORT}:8084"
+
+  # Kafka Zookeeper
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - net
+    ports:
+      - "2181:2181"
+    restart: on-failure
+
+
+  # Kafka Service
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+    networks:
+      - net
+    ports:
+      - "9092:9092"
+    restart: on-failure
+
+  #Second Broker
+  kafka-2:
+    image: confluentinc/cp-kafka:latest
+    container_name: kafka-2
+    ports:
+      - "9093:9093"
+    environment:
+      KAFKA_BROKER_ID: 2
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-2:9093
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9093
+    networks:
+      - net
+    depends_on:
+      - zookeeper
+    restart: on-failure
+
+  #Third Broker
+  kafka-3:
+    image: confluentinc/cp-kafka:latest
+    container_name: kafka-3
+    ports:
+      - "9094:9094"
+    environment:
+      KAFKA_BROKER_ID: 3
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-3:9094
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9094
+    networks:
+      - net
+    depends_on:
+      - zookeeper
+    restart: on-failure
+
+networks:
+  net:
